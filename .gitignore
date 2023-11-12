@@ -1,0 +1,11 @@
+
+*.sw?
+*.pyc
+*.json
+*.jsonl
+*.txt
+*.log
+*.csv
+
+__pycache__
+

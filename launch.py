@@ -283,7 +283,6 @@ if 'Launch matters':
 			pass
 
 if 'Action nonsense':
-	
 	_action_table = _rodict().lock()
 	class _ActionMeta(type):
 		def __init__(c,name,bases,dct):

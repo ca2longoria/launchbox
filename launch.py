@@ -33,6 +33,17 @@ if 'Helper funcs':
 		for k in keys:
 			a = a[k]
 		return a
+	
+	def _tojson(ob):
+		def f(a):
+			try:
+				json.dumps(a)
+				return a
+			except TypeError as e:
+				return {'<<type>>':type(a),'value':str(a),'error':str(e)}
+			except ValueError as e:
+				return {'<<type>>':type(a),'value':str(a),'error':str(e)}
+		return json.dumps(ob,default=f)
 
 if 'Helper classes':
 	class _rodict(dict):
@@ -245,7 +256,25 @@ if 'Launch matters':
 				e = boto3.resource('ec2')
 				n = e.Instance(self._iid)
 			else:
-				raise Exception('PERISH')
+				n = self.select(**self._tags)
+				#raise Exception('No Instance selection method available')
+				print('selected n',n)
+			return n
+		
+		def select(self,**kw):
+			def these(a):
+				for b in a['Reservations']:
+					for n in b['Instances']:
+						yield n
+			fr = [{'Name':'tag:'+k,'Values':[kw[k]]} for k in kw.keys()]
+			e = boto3.client('ec2')
+			res = e.describe_instances(Filters=fr)
+			# Note that it only grabs one match.
+			b = list(these(res))[0]
+			print('n',b['Tags'],b['InstanceId'])
+			e = boto3.resource('ec2')
+			n = e.Instance(b['InstanceId'])
+			self._ins = n
 			return n
 		
 		def create(self,**kw):
@@ -276,11 +305,24 @@ if 'Launch matters':
 				return None
 			return n
 		
+		def start(self):
+			return self.instance.start()
+
 		def stop(self):
 			return self.instance.stop()
 		
-		def terminate(self):
-			pass
+		def terminate(self,name=None):
+			# TODO: This one needs verification.
+			assert name, 'name of instance needed for validation before termination'
+			n = self.instance
+			print('terminate n',n,n.tags)
+			r = [a for a in n.tags if a['Key'] == 'Name']
+			a = r[0] if len(r) else None
+			if a and a['Value'] == name:
+				print('actually terminating n',n)
+				return n.terminate()
+			else:
+				return None
 
 if 'Action nonsense':
 	_action_table = _rodict().lock()

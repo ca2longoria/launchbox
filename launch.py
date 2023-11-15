@@ -269,8 +269,14 @@ if 'Launch matters':
 			fr = [{'Name':'tag:'+k,'Values':[kw[k]]} for k in kw.keys()]
 			e = boto3.client('ec2')
 			res = e.describe_instances(Filters=fr)
-			# Note that it only grabs one match.
-			b = list(these(res))[0]
+			# Note that it only grabs one match and avoids instances as so:
+			# . terminated
+			# . shutting-down
+			r = [a for a in these(res) if not \
+				(a['State']['Name'] in ('terminated','shutting-down'))]
+			if not len(r):
+				return None # duck out if not matches
+			b = r[0]
 			print('n',b['Tags'],b['InstanceId'])
 			e = boto3.resource('ec2')
 			n = e.Instance(b['InstanceId'])
@@ -312,9 +318,10 @@ if 'Launch matters':
 			return self.instance.stop()
 		
 		def terminate(self,name=None):
-			# TODO: This one needs verification.
 			assert name, 'name of instance needed for validation before termination'
 			n = self.instance
+			if not n:
+				return None
 			print('terminate n',n,n.tags)
 			r = [a for a in n.tags if a['Key'] == 'Name']
 			a = r[0] if len(r) else None

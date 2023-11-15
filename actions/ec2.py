@@ -2,12 +2,57 @@
 from launch import Action, Launch
 
 
-scripts = {
-	'ubuntu':'''#!/bin/bash
-echo "Who be ye?"
-echo I LIVE | tee /tmp/hello
-echo "I am `whoami`"
-'''
+class Script:
+	def __init__(self,parts=None):
+		self._parts = parts if not parts is None else []
+	def add(self,*r):
+		''' Add another script object as a component to render. '''
+		for a in r:
+			self._parts.append(a)
+		return self
+	def render(self):
+		return '#!/bin/bash\n' + \
+			'{'+'\n'.join((a.render() for a in self._parts))+'\n} 2>&1 | tee /tmp/script.log'
+
+class PackageScriptAPT(Script):
+	def render(self):
+		return '\n'.join([
+			'apt update',
+			'apt install -y %s' % (' '.join(self._parts)) ])
+
+class GitScript(Script):
+	def __init__(self,table=None,dest=None):
+		self._dest  = dest or '/tmp'
+		self._table = table if not table is None else {}
+	def render(self):
+		return '\n'.join([
+			'( cd "%s"' % (self._dest,),
+			'%s' % '\n'.join([\
+			('  git clone "%s" "%s" && \\\n' +
+			'    chown -R ubuntu:ubuntu "%s"') % (v,k,k) \
+					for k,v in self._table.items()]),
+			')'
+		])
+
+class BashScript(Script):
+	def __init__(self,text=None,header=None):
+		header = header if not header is None else ''
+		text = text if not text is None else ''
+		if not type(text) is str:
+			text = '\n'.join(text)
+		self._text = text
+		self._header = header
+	def render(self):
+		return (self._header+'\n' if self._header else '')+self._text
+
+# TODO: This neesd to be in a config file, I think.
+schemas = {
+	'ubuntu': {
+		# TODO: Which means another meta class so this can be a string.
+		'packages':PackageScriptAPT,
+		'git':GitScript,
+		'shell':BashScript
+	}
 }
 
 class LaunchBase(Action):
@@ -49,11 +94,26 @@ class LaunchBase(Action):
 class LaunchCreate(LaunchBase):
 	def act(self,run=True):
 		prof = self._prof
-		userscript = scripts[prof.buildup.script]
+		us = schemas[prof.buildup.schema]
+		userscript = Script()
+		# TODO: Move this logic into its own func, so teardown can call it, too.
+		if hasattr(prof,'buildup'):
+			# Has buildup object, which speicifies a schema and things to run.
+			for a in prof.buildup.run:
+				for k,v in a.items():
+					print('k,v',k,v)
+					if k == 'packages':
+						userscript.add(us[k](v))
+					elif k == 'git':
+						userscript.add(us[k](v,dest='/opt'))
+					elif k == 'shell':
+						userscript.add(us[k](v))
 		a,lconf = self.act_setup()
+		print('script:\n%s' % (userscript.render(),))
+		#return None
 		if run:
 			return a.create(
-				UserData=userscript)
+				UserData=userscript.render())
 		else:
 			return None
 

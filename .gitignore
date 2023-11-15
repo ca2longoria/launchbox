@@ -1,4 +1,5 @@
 
+# File extensions.
 *.sw?
 *.pyc
 *.json
@@ -6,6 +7,10 @@
 *.txt
 *.log
 *.csv
+*.pem
 
+# Directories.
+fs
+tmp
 __pycache__
 

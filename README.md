@@ -9,7 +9,7 @@ It's a lunchbox!  But also a launcher of boxes.  EC2 instances in this case.
 
 Full history listed in wiki.
 
-#### v0.1_3.4_5.6
+#### v0.1_4.4_6.6
 
 Working toward minor version 2
 - [x] get network connecting to newly started instance
@@ -20,10 +20,10 @@ Working toward minor version 2
 - [x] buildup steps, packages
   - [x] packages specified in config file
   - [x] packages actually install
-- [ ] buildup steps, git
-  - [ ] git clone working
+- [x] buildup steps, git
+  - [x] git clone working
     - [x] https
-    - [ ] ssh
+    - [x] ssh
       - need this to pull private github repositories
 - [x] BUGS
   - [x] terminate() fails when it selects certain instances
@@ -32,7 +32,7 @@ Working toward minor version 2
 Pushing to minor version 3
 - [ ] buildup steps, archives
   - [ ] wget/curl archive and extract
-  - [ ] S3 archive and extract, or pull whole stored dir
+  - [x] S3 archive and extract, or pull whole stored dir
 
 
 

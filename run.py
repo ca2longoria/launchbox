@@ -16,6 +16,7 @@ if True and __name__ == '__main__':
 	p = argparse.ArgumentParser(description='launchbox, launch ec2 instances')
 	p.add_argument('action',help='Action class to initialize')
 	p.add_argument('configs',nargs='*',help='config files to pass to Action')
+	p.add_argument('-d','--dryrun',action='store_true',help='pass run=False int act()')
 	ar = p.parse_args()
 	
 	debug = False
@@ -36,7 +37,8 @@ if True and __name__ == '__main__':
 		[a for p,a in Config.render_n(*[confd[s] for s in ar.configs])]
 	act = Action.table[ar.action](*confs)
 	#res = act.act(False)
-	res = act.act(True)
+	#res = act.act(True)
+	res = act.act(not ar.dryrun)
 	print('res',res)
 
 

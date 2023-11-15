@@ -13,7 +13,7 @@ Full history listed in wiki.
 
 Working toward minor version 2
 - [x] get network connecting to newly started instance
-  - [~] ENC or something, Elastic Network Connection I think?
+  - [x] ~ENC or something, Elastic Network Connection I think?~
     - this wasn't it; it was a Subnet auto-assign public ipv4 setting
   - [x] auto-create one on new instance if specified in profile config file
     - new Subnet with autoassign works for public internet connection

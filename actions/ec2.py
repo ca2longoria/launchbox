@@ -1,20 +1,53 @@
 
-from launch import Action, Launch
+import json
 
+from launch import Action, Launch, Config, rodict
 
-class Script:
+_script_table = rodict()
+class _MetaScript(type):
+	def __init__(c,name,bases,ns):
+		_script_table[name] = c
+	@property
+	def table(self):
+		return _script_table
+
+class Script(metaclass=_MetaScript):
 	def __init__(self,parts=None):
 		self._parts = parts if not parts is None else []
+	
+	@staticmethod
+	def match_key(key,schema):
+		if key in schema:
+			return schema[key]
+		r = []
+		for k,c in _script_table.items():
+			kr = c.keys()
+			if key in kr:
+				r.append(c)
+		if len(r) > 1:
+			raise Exception('multiple key (%s) match conflict (%s)' % (k,str(r)))
+		if len(r) < 0:
+			raise Exception('no key match for (%s)' % (key,))
+		return r[0]
+	
+	@staticmethod
+	def keys():
+		return []
+	
 	def add(self,*r):
 		''' Add another script object as a component to render. '''
 		for a in r:
 			self._parts.append(a)
 		return self
+	
 	def render(self):
 		return '#!/bin/bash\n' + \
 			'{\n'+'\n'.join((a.render() for a in self._parts))+'\n} 2>&1 | tee /tmp/script.log'
 
 class PackageScriptAPT(Script):
+	@staticmethod
+	def keys():
+		return ['packages']
 	def render(self):
 		return '\n'.join([
 			'apt update',
@@ -24,13 +57,17 @@ class GitScript(Script):
 	def __init__(self,table=None,dest=None):
 		self._dest  = dest or '/tmp'
 		self._table = table if not table is None else {}
+	@staticmethod
+	def keys():
+		return ['git']
 	def render(self):
-		key = self._table['_key'] if '_key' in self._table else None
+		key  = self._table['_key'] if '_key' in self._table else None
+		dest = self._table['_dir'] if '_dir' in self._table else self._dest
 		sshcom = 'GIT_SSH_COMMAND="ssh %s %s" \\\n    ' % (
 			('-i \'%s\'' % (key,)) if key else '',
 			'-o StrictHostKeyChecking=no')
 		return '\n'.join([
-			'( cd "%s"' % (self._dest,),
+			'( cd "%s"' % (dest,),
 			'%s' % '\n'.join([\
 			('  %sgit clone "%s" "%s" && \\\n' +
 			'      chown -R ubuntu:ubuntu "%s"') % (sshcom,v,k,k) \
@@ -46,6 +83,9 @@ class BashScript(Script):
 			text = '\n'.join(text)
 		self._text = text
 		self._header = header
+	@staticmethod
+	def keys():
+		return ['shell','bash']
 	def render(self):
 		return (self._header+'\n' if self._header else '')+self._text
 
@@ -55,6 +95,9 @@ class CopyScript(Script):
 		self._obs = ob
 
 class S3Script(CopyScript):
+	@staticmethod
+	def keys():
+		return ['pull','s3']
 	def render(self):
 		# TODO: Determine args for recursive get.
 		ret = []
@@ -64,18 +107,6 @@ class S3Script(CopyScript):
 			s = '%saws s3 cp "s3://%s" "%s"' % (mkdir,src,dest)
 			ret.append(s)
 		return '\n'.join(ret)
-
-# TODO: This neesd to be in a config file, I think.
-schemas = {
-	'ubuntu': {
-		# TODO: Which means another meta class so this can be a string.
-		'packages':PackageScriptAPT,
-		'git':GitScript,
-		'shell':BashScript,
-		'pull':None,
-		's3':S3Script
-	}
-}
 
 class LaunchBase(Action):
 	def __init__(self,conf,prof=None):
@@ -116,7 +147,10 @@ class LaunchBase(Action):
 class LaunchCreate(LaunchBase):
 	def act(self,run=True):
 		prof = self._prof
-		us = schemas[prof.buildup.schema]
+		# Load the config file specified by prof.buildup.schema, parse as a json
+		# object, and provide a table of script keys and Script classes.
+		with open(Config.find('./conf.d')[prof.buildup.schema],'r') as f:
+			us = {k:Script.table[v] for k,v in json.loads(f.read()).items()}
 		userscript = Script()
 		createkw = {}
 		# TODO: Move this logic into its own func, so teardown can call it, too.
@@ -125,15 +159,17 @@ class LaunchCreate(LaunchBase):
 			for a in prof.buildup.run:
 				for k,v in a.items():
 					print('k,v',k,v)
-					# TODO: Have a metaclass table keeping track of keywords to look for.
-					if k == 'packages':
-						userscript.add(us[k](v))
-					elif k == 'git':
-						userscript.add(us[k](v,dest='/opt'))
-					elif k == 'shell':
-						userscript.add(us[k](v))
-					elif k == 's3':
-						userscript.add(us[k](v))
+					userscript.add(Script.match_key(k,us)(v))
+					if False:
+						# TODO: Have a metaclass table keeping track of keywords to look for.
+						if k == 'packages':
+							userscript.add(us[k](v))
+						elif k == 'git':
+							userscript.add(us[k](v,dest='/opt'))
+						elif k == 'shell':
+							userscript.add(us[k](v))
+						elif k == 's3':
+							userscript.add(us[k](v))
 		print('script:\n%s' % (userscript.render(),))
 		#return None
 		createkw['UserData'] = userscript.render()

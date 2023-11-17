@@ -72,6 +72,7 @@ if 'Helper classes':
 				self.lock()
 				self._relock = False
 			return dict.__delitem__(self,k)
+	rodict = _rodict
 
 if 'Config matters':
 	def _confstep(a,k):
